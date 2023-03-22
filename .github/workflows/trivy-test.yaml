@@ -9,35 +9,47 @@ on:
   push:
     branches: [ "master" ]
   pull_request:
-    # The branches below must be a subset of the branches above
     branches: [ "master" ]
-  # schedule:
-  #   - cron: '29 16 * * 2'
+
+env:
+  GKE_PROJECT: beha-data
+  GKE_ZONE: asia-northeast3-a
+  GKE_CLUSTER: superset-dev
+  tag: ${{ github.sha }}
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  pre-config:
+    runs-on: ubuntu-latest
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
       actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
-    name: Build
-    runs-on: "ubuntu-18.04"
     steps:
-      - name: Checkout code
+      -
+        name: Checkout
         uses: actions/checkout@v3
-
-      - name: Build an image from Dockerfile
-        run: |
-          docker build -t trivy-test .
+      - name: Login to GCR
+        env:
+          PROJECT_ID: ${{secrets.GOOGLE_PROJECT_ID}}
+        uses: google-github-actions/setup-gcloud@v0.3.0
+        with:
+          service_account_key: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          project_id: ${{ secrets.GOOGLE_PROJECT_ID }}
+          export_default_credentials: true
+      - name: Build Docker Image
+        env:
+          PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+        run: docker build -t trivy-test:$tag . #build the docker image test
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           image-ref: 'trivy-test'
           format: 'template'
+          exit-code: '1'
           template: '@/contrib/sarif.tpl'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -46,3 +58,15 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Configure Docker Client
+        run:  |-
+          gcloud auth configure-docker --quiet #authenticate to gcr
+        
+      - name: Push Docker Image to Container Registry GCR
+        env: 
+          IMAGE_NAME: trivy-test
+          PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+        run: |-
+          docker tag trivy-test:$tag gcr.io/$PROJECT_ID/trivy-test:$tag
+          docker push gcr.io/$PROJECT_ID/trivy-test:$tag
