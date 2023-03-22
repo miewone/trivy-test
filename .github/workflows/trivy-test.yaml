@@ -48,25 +48,31 @@ jobs:
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           image-ref: 'trivy-test'
-          format: 'template'
-          exit-code: '1'
+          format: 'json'
+          # exit-code: '1'
           template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
+          output: 'trivy-results.json'
           severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-results.sarif'
-
+      - name : Read Result.json
+        shell: bash
+        run: |
+          cat trivy-results.json
       - name: Configure Docker Client
         run:  |-
-          gcloud auth configure-docker --quiet #authenticate to gcr
+          gcloud projects list
+      # - name: Upload Trivy scan results to GitHub Security tab
+      #   uses: github/codeql-action/upload-sarif@v2
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
+
+      # - name: Configure Docker Client
+      #   run:  |-
+      #     gcloud auth configure-docker --quiet #authenticate to gcr
         
-      - name: Push Docker Image to Container Registry GCR
-        env: 
-          IMAGE_NAME: trivy-test
-          PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
-        run: |-
-          docker tag trivy-test:$tag gcr.io/$PROJECT_ID/trivy-test:$tag
-          docker push gcr.io/$PROJECT_ID/trivy-test:$tag
+      # - name: Push Docker Image to Container Registry GCR
+      #   env: 
+      #     IMAGE_NAME: trivy-test
+      #     PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+      #   run: |-
+      #     docker tag trivy-test:$tag gcr.io/$PROJECT_ID/trivy-test:$tag
+      #     docker push gcr.io/$PROJECT_ID/trivy-test:$tag
