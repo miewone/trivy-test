@@ -59,7 +59,7 @@ jobs:
           cat trivy-results.json
       - name: Test
         run:  |-
-          gcloud projects list
+          bq ls
       # - name: Upload Trivy scan results to GitHub Security tab
       #   uses: github/codeql-action/upload-sarif@v2
       #   with:
